@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "databricks-genie-spaces"
+version = "0.1.0"
+description = "Extension of databricks-ai-bridge for Genie Space management (CRUD operations)"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Databricks", email = "support@databricks.com"}
+]
+keywords = ["databricks", "genie", "api", "admin", "management", "spaces", "data-intelligence"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Data Engineers", 
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Database",
+    "Topic :: System :: Systems Administration",
+]
+
+dependencies = [
+    "databricks-sdk>=0.18.0",
+    "databricks-ai-bridge>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+mlflow = [
+    "mlflow>=2.9.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/databricks/databricks-genie-spaces"
+Documentation = "https://docs.databricks.com/api/workspace/genie"
+Repository = "https://github.com/databricks/databricks-genie-spaces"
+Issues = "https://github.com/databricks/databricks-genie-spaces/issues"
+"AI Bridge" = "https://github.com/databricks/databricks-ai-bridge"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
