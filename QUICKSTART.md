@@ -34,10 +34,12 @@ print(space['title'])
 exported = manager.get_space("space_id_here", include_serialized_space=True)
 config = exported['serialized_space']
 
-# Create a space
+# Create a space from a template or existing space
+template = manager.get_space("template_space_id", include_serialized_space=True)
 new_space = manager.create_space(
     warehouse_id="abc123",
     parent_path="/Workspace/Users/you@company.com/Genie Spaces",
+    serialized_space=template['serialized_space'],
     title="My Space"
 )
 
@@ -73,9 +75,12 @@ w = WorkspaceClient()
 
 # 1. Create a space (using genie-spaces)
 manager = GenieSpacesManager(w)
+# Get a template space configuration
+template = manager.get_space("template_space_id", include_serialized_space=True)
 new_space = manager.create_space(
     warehouse_id="abc123",
     parent_path="/Workspace/Users/user@example.com/Genie Spaces",
+    serialized_space=template['serialized_space'],
     title="Sales Analytics"
 )
 space_id = new_space['space_id']

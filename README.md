@@ -62,10 +62,15 @@ spaces = manager.list_spaces()
 for space in spaces.get('spaces', []):
     print(f"{space['space_id']}: {space['title']}")
 
-# Create a new space
+# Export an existing space configuration to use as template
+template = manager.get_space("template_space_id", include_serialized_space=True)
+serialized_config = template['serialized_space']
+
+# Create a new space from the configuration
 new_space = manager.create_space(
     warehouse_id="your_warehouse_id",
     parent_path="/Workspace/Users/user@example.com/Genie Spaces",
+    serialized_space=serialized_config,
     title="Sales Analytics",
     description="Space for sales data analysis"
 )
@@ -121,10 +126,12 @@ from databricks_ai_bridge.genie import GenieClient
 w = WorkspaceClient()
 manager = GenieSpacesManager(w)
 
-# 1. Create a space
+# 1. Create a space from a template
+template = manager.get_space("template_space_id", include_serialized_space=True)
 new_space = manager.create_space(
     warehouse_id="abc123",
     parent_path="/Workspace/Users/user@example.com/Genie Spaces",
+    serialized_space=template['serialized_space'],
     title="Customer Analytics"
 )
 space_id = new_space['space_id']
@@ -157,9 +164,9 @@ List all Genie Spaces in the workspace.
 
 **Docs:** [listspaces](https://docs.databricks.com/api/workspace/genie/listspaces)
 
-### `create_space(warehouse_id, parent_path, serialized_space=None, title=None, description=None)`
+### `create_space(warehouse_id, parent_path, serialized_space, title=None, description=None)`
 
-Create a new Genie Space.
+Create a new Genie Space. The `serialized_space` parameter is required and contains the space configuration (export from an existing space using `get_space()` with `include_serialized_space=True`).
 
 **Docs:** [createspace](https://docs.databricks.com/api/workspace/genie/createspace)
 
