@@ -168,7 +168,7 @@ class GenieSpacesManager:
         self,
         warehouse_id: str,
         parent_path: str,
-        serialized_space: Optional[str] = None,
+        serialized_space: str,
         title: Optional[str] = None,
         description: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -182,18 +182,27 @@ class GenieSpacesManager:
             warehouse_id: ID of the SQL warehouse to use for this space
             parent_path: Workspace folder path where the space will be created
                         (e.g., "/Workspace/Users/user@company.com/Genie Spaces")
-            serialized_space: Optional JSON string of exported space configuration
-            title: Optional space title
-            description: Optional space description
+            serialized_space: JSON string of space configuration (required).
+                            Export from an existing space using get_space() with
+                            include_serialized_space=True, or create a minimal config.
+            title: Optional space title (can override title in serialized_space)
+            description: Optional space description (can override description in serialized_space)
             
         Returns:
             Dictionary containing the created space details including space_id
             
         Example:
+            >>> # Create from exported configuration
             >>> manager = GenieSpacesManager(workspace_client)
+            >>> # First, export an existing space
+            >>> exported = manager.get_space("existing_space_id", include_serialized_space=True)
+            >>> serialized_config = exported['serialized_space']
+            >>> 
+            >>> # Create new space from configuration
             >>> space = manager.create_space(
             ...     warehouse_id="abc123def456",
             ...     parent_path="/Workspace/Users/user@example.com/Genie Spaces",
+            ...     serialized_space=serialized_config,
             ...     title="My New Space",
             ...     description="A space for analytics"
             ... )
@@ -201,11 +210,10 @@ class GenieSpacesManager:
         """
         data = {
             "warehouse_id": warehouse_id,
-            "parent_path": parent_path
+            "parent_path": parent_path,
+            "serialized_space": serialized_space
         }
         
-        if serialized_space:
-            data["serialized_space"] = serialized_space
         if title:
             data["title"] = title
         if description:

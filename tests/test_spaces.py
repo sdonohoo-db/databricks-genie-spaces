@@ -108,6 +108,7 @@ def test_create_space(mock_workspace_client):
     result = manager.create_space(
         warehouse_id="abc123",
         parent_path="/Workspace/Users/test",
+        serialized_space='{"config": "test"}',
         title="New Space"
     )
     
@@ -117,6 +118,7 @@ def test_create_space(mock_workspace_client):
     call_args = mock_workspace_client.api_client.do.call_args
     assert call_args[1]["method"] == "POST"
     assert call_args[1]["body"]["warehouse_id"] == "abc123"
+    assert call_args[1]["body"]["serialized_space"] == '{"config": "test"}'
     assert call_args[1]["body"]["title"] == "New Space"
 
 
