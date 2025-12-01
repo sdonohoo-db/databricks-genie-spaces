@@ -134,11 +134,16 @@ try:
         print(f"Has serialized_space: {'serialized_space' in exported}")
         print(f"\nConfiguration keys: {list(exported.keys())}")
         
-        # Optionally save to DBFS
-        # dbutils.fs.put("/FileStore/genie_exports/exported_space.json", 
-        #                json.dumps(exported, indent=2), 
-        #                overwrite=True)
-        # print("Saved to /FileStore/genie_exports/exported_space.json")
+        # Save only the serialized_space as a JSON document
+        # The serialized_space is returned as a JSON string, so parse it first
+        # space_name = exported.get('title', 'unnamed_space').replace(' ', '_').replace('/', '_')
+        # filename = f"{space_name}_config.json"
+        # serialized_space_str = exported.get('serialized_space')
+        # if serialized_space_str:
+        #     serialized_space_obj = json.loads(serialized_space_str)
+        #     with open(filename, 'w') as f:
+        #         json.dump(serialized_space_obj, f, indent=2)
+        #     print(f"💾 Saved serialized space configuration to {filename}")
     else:
         print("No spaces available to export")
         
@@ -152,30 +157,40 @@ except GenieSpaceError as e:
 # MAGIC
 # MAGIC Create a new Genie Space in your workspace.
 # MAGIC
-# MAGIC **⚠️ Note:** Update the parameters below with your actual values before running.
+# MAGIC **⚠️ Note:** `serialized_space` is required. You must export from an existing space first.
+# MAGIC
+# MAGIC To create a space, you need a `serialized_space` configuration. Get this by:
+# MAGIC 1. Exporting from an existing space (see Example 3), or
+# MAGIC 2. Creating a minimal configuration JSON
 
 # COMMAND ----------
 
-# Uncomment and update the values to create a space
+# Create a space from an exported configuration file
 """
 try:
+    # Read the exported serialized space configuration
+    with open("Sales_Analytics_config.json", 'r') as f:
+        serialized_space_obj = json.load(f)
+    
+    # Convert the JSON object back to a string (API expects a JSON string)
+    serialized_space_str = json.dumps(serialized_space_obj)
+    
+    # Create the space with the serialized configuration
     new_space = manager.create_space(
         warehouse_id="your_warehouse_id",  # Replace with your warehouse ID
         parent_path="/Workspace/Users/your.email@company.com/Genie Spaces",  # Replace with your path
-        title="My New Genie Space",
-        description="Created via databricks-genie-spaces package"
+        serialized_space=serialized_space_str,
+        title="Sales Analytics (Copy)",  # Optional: Override the title
+        description="Cloned from exported configuration"  # Optional: Override description
     )
     
-    print(f"✅ Created space: {new_space['space_id']}")
+    print(f"✅ Created space from configuration: {new_space['space_id']}")
     print(f"   Title: {new_space['title']}")
-    print(f"   Warehouse: {new_space['warehouse_id']}")
     
+except FileNotFoundError:
+    print("❌ Configuration file not found. Export a space first (Example 3)")
 except GenieSpaceError as e:
     print(f"❌ Error: {e.message}")
-    if e.status_code == 400:
-        print("Check that warehouse_id and parent_path are valid")
-    elif e.status_code == 403:
-        print("You may not have permission to create spaces at this path")
 """
 
 # COMMAND ----------
@@ -275,17 +290,19 @@ print(response2.result)
 # MAGIC %md
 # MAGIC ## Complete Workflow Example
 # MAGIC
-# MAGIC Putting it all together: Create → Query → Export → Update
+# MAGIC Putting it all together: Create → Query → Export → Update → Clone
 
 # COMMAND ----------
 
 # Complete workflow (uncomment and update values to run)
 """
 try:
-    # 1. Create a space
+    # 1. Create a space from a template
+    template = manager.get_space("template_space_id", include_serialized_space=True)
     new_space = manager.create_space(
         warehouse_id="abc123",
         parent_path="/Workspace/Users/user@example.com/Genie Spaces",
+        serialized_space=template['serialized_space'],
         title="Customer Analytics"
     )
     space_id = new_space['space_id']
@@ -299,12 +316,16 @@ try:
     
     # 3. Export configuration for backup
     exported = manager.get_space(space_id, include_serialized_space=True)
-    dbutils.fs.put(
-        f"/FileStore/backups/space_{space_id}.json", 
-        json.dumps(exported, indent=2),
-        overwrite=True
-    )
-    print(f"💾 Backed up to DBFS")
+    space_name = exported.get('title', 'unnamed_space').replace(' ', '_').replace('/', '_')
+    filename = f"{space_name}_config.json"
+    
+    # Parse the serialized_space string and save as JSON document
+    serialized_space_str = exported.get('serialized_space')
+    if serialized_space_str:
+        serialized_space_obj = json.loads(serialized_space_str)
+        with open(filename, 'w') as f:
+            json.dump(serialized_space_obj, f, indent=2)
+        print(f"💾 Backed up configuration to {filename}")
     
     # 4. Update space configuration
     manager.update_space(
@@ -312,6 +333,19 @@ try:
         description="Updated analytics space with customer data"
     )
     print(f"✅ Updated space configuration")
+    
+    # 5. Clone the space from the exported configuration
+    with open(filename, 'r') as f:
+        serialized_space_obj = json.load(f)
+    serialized_space_str = json.dumps(serialized_space_obj)
+    
+    cloned_space = manager.create_space(
+        warehouse_id="abc123",
+        parent_path="/Workspace/Users/user@example.com/Genie Spaces",
+        serialized_space=serialized_space_str,
+        title="Customer Analytics (Clone)"
+    )
+    print(f"🔄 Cloned space: {cloned_space['space_id']}")
     
 except GenieSpaceError as e:
     print(f"❌ Error in workflow: {e.message}")

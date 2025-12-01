@@ -73,10 +73,15 @@ def main():
         print("Example 4: Create space (commented out)")
         print("=" * 60)
         print("""
-# To create a space:
+# To create a space, you need a serialized_space configuration.
+# Export from an existing space first:
+template = manager.get_space("template_space_id", include_serialized_space=True)
+
+# Then create the new space:
 new_space = manager.create_space(
     warehouse_id="your_warehouse_id",
     parent_path="/Workspace/Users/your.email@company.com/Genie Spaces",
+    serialized_space=template['serialized_space'],
     title="My New Space",
     description="Created via databricks-genie-spaces"
 )
