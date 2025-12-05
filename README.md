@@ -1,27 +1,28 @@
 # Databricks Genie Spaces Management
 
-**An extension of [databricks-ai-bridge](https://github.com/databricks/databricks-ai-bridge) for Genie Space administrative operations.**
+**An extension package providing Beta Genie Space APIs not yet available in the [Databricks SDK](https://databricks-sdk-py.readthedocs.io/en/stable/workspace/dashboards/genie.html).**
 
-This package provides CRUD (Create, Read, Update, Delete) operations for managing Databricks Genie Spaces, complementing the query/interaction capabilities in `databricks-ai-bridge`.
+This package provides the **Create** and **Update** operations for Genie Spaces. All other Genie APIs (list, get, trash, conversations) are available in the Databricks SDK.
 
-## Relationship to databricks-ai-bridge
+> ⚠️ **Beta Notice**: The **Create Genie Space** and **Update Genie Space** APIs are currently in Beta. This code may have breaking changes as the APIs evolve. See the [Databricks API documentation](https://docs.databricks.com/api/workspace/genie) for the latest status.
 
-| Package | Purpose | Use Cases |
-|---------|---------|-----------|
-| **databricks-ai-bridge** | Query & interact with Genie Spaces | Ask questions, get answers, conversation management |
-| **databricks-genie-spaces** (this package) | Manage Genie Space lifecycle | Create, update, export, import, delete spaces |
+## API Availability
 
-**Use together:**
-- Use `databricks_ai_bridge.genie.GenieClient` to **query** existing spaces
-- Use `databricks_genie_spaces.GenieSpacesManager` to **manage** spaces
+| API | Status | Package |
+|-----|--------|---------|
+| `list_spaces()` | Public Preview | `databricks.sdk` ([w.genie.list_spaces](https://databricks-sdk-py.readthedocs.io/en/stable/workspace/dashboards/genie.html)) |
+| `get_space()` | Public Preview | `databricks.sdk` ([w.genie.get_space](https://databricks-sdk-py.readthedocs.io/en/stable/workspace/dashboards/genie.html)) |
+| `get_space(include_serialized_space=True)` | **Beta** | `databricks-genie-spaces` (this package) - *for exporting configs* |
+| `trash_space()` | Public Preview | `databricks.sdk` ([w.genie.trash_space](https://databricks-sdk-py.readthedocs.io/en/stable/workspace/dashboards/genie.html)) |
+| `create_space()` | **Beta** | `databricks-genie-spaces` (this package) |
+| `update_space()` | **Beta** | `databricks-genie-spaces` (this package) |
+| Conversations/Messages | Public Preview | `databricks.sdk` ([w.genie](https://databricks-sdk-py.readthedocs.io/en/stable/workspace/dashboards/genie.html)) |
 
 ## Features
 
-- ✅ **List Spaces**: Enumerate all Genie Spaces in workspace
-- ✅ **Create Spaces**: Create new Genie Spaces with configuration
-- ✅ **Get/Export Spaces**: Retrieve space details and full configuration
-- ✅ **Update Spaces**: Modify existing space configuration
-- ✅ **Delete/Trash Spaces**: Remove spaces (recoverable via trash)
+- ✅ **Create Spaces**: Create new Genie Spaces with configuration (Beta)
+- ✅ **Update Spaces**: Modify existing space configuration (Beta)
+- ✅ **Export Spaces**: Get space configuration with `include_serialized_space=True` (Beta)
 - ✅ **MLflow Tracing**: Optional MLflow integration for observability
 - ✅ **SDK Integration**: Uses `databricks.sdk.WorkspaceClient` for consistency
 
@@ -47,26 +48,41 @@ pip install git+https://github.com/databricks/databricks-genie-spaces.git
 
 ## Quick Start
 
-### Managing Spaces (this package)
+### Using the Databricks SDK (Public Preview APIs)
+
+```python
+from databricks.sdk import WorkspaceClient
+
+w = WorkspaceClient()  # Uses environment variables or .databrickscfg
+
+# List all spaces
+spaces = w.genie.list_spaces()
+for space in spaces.spaces:
+    print(f"{space.space_id}: {space.title}")
+
+# Get space details
+space = w.genie.get_space("your_space_id")
+print(f"Space: {space.title}")
+
+# Delete a space
+w.genie.trash_space("your_space_id")
+```
+
+### Using this Package (Beta APIs)
 
 ```python
 from databricks.sdk import WorkspaceClient
 from databricks_genie_spaces import GenieSpacesManager
 
-# Initialize
-w = WorkspaceClient()  # Uses environment variables or .databrickscfg
+w = WorkspaceClient()
 manager = GenieSpacesManager(w)
 
-# List all spaces
-spaces = manager.list_spaces()
-for space in spaces.get('spaces', []):
-    print(f"{space['space_id']}: {space['title']}")
-
-# Export an existing space configuration to use as template
+# Get an existing space's configuration to use as template
+# Note: get_space with include_serialized_space is only available via this package
 template = manager.get_space("template_space_id", include_serialized_space=True)
-serialized_config = template['serialized_space']
+serialized_config = template.serialized_space  # Returns GenieSpace dataclass
 
-# Create a new space from the configuration
+# Create a new space (Beta API)
 new_space = manager.create_space(
     warehouse_id="your_warehouse_id",
     parent_path="/Workspace/Users/user@example.com/Genie Spaces",
@@ -74,23 +90,13 @@ new_space = manager.create_space(
     title="Sales Analytics",
     description="Space for sales data analysis"
 )
-print(f"Created: {new_space['space_id']}")
+print(f"Created: {new_space.space_id}")  # Returns GenieSpace dataclass
 
-# Export a space (with full configuration)
-exported = manager.get_space(
-    space_id="your_space_id",
-    include_serialized_space=True
-)
-config = exported['serialized_space']
-
-# Update a space
+# Update a space (Beta API)
 manager.update_space(
     space_id="your_space_id",
     title="Sales Analytics (Updated)"
 )
-
-# Delete a space
-manager.trash_space("your_space_id")
 ```
 
 ### Querying Spaces (databricks-ai-bridge)
@@ -99,7 +105,6 @@ manager.trash_space("your_space_id")
 from databricks.sdk import WorkspaceClient
 from databricks_ai_bridge.genie import GenieClient
 
-# Initialize for querying
 w = WorkspaceClient()
 genie = GenieClient(w, space_id="your_space_id")
 
@@ -126,15 +131,15 @@ from databricks_ai_bridge.genie import GenieClient
 w = WorkspaceClient()
 manager = GenieSpacesManager(w)
 
-# 1. Create a space from a template
+# 1. Get template configuration from an existing space
 template = manager.get_space("template_space_id", include_serialized_space=True)
 new_space = manager.create_space(
     warehouse_id="abc123",
     parent_path="/Workspace/Users/user@example.com/Genie Spaces",
-    serialized_space=template['serialized_space'],
+    serialized_space=template.serialized_space,
     title="Customer Analytics"
 )
-space_id = new_space['space_id']
+space_id = new_space.space_id
 
 # 2. Query the space
 genie = GenieClient(w, space_id=space_id)
