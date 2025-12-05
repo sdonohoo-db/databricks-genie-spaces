@@ -1,5 +1,8 @@
 """
 Tests for Databricks Genie Spaces Management
+
+Note: This package only provides Beta APIs (create_space, update_space, get_space with export).
+For Public Preview APIs, use the Databricks SDK directly (w.genie.list_spaces, w.genie.trash_space).
 """
 
 import json
@@ -37,31 +40,8 @@ def test_create_spaces_manager():
         assert isinstance(manager, GenieSpacesManager)
 
 
-def test_list_spaces(mock_workspace_client):
-    """Test list_spaces method"""
-    mock_response = {
-        "spaces": [
-            {"space_id": "123", "title": "Test Space 1"},
-            {"space_id": "456", "title": "Test Space 2"}
-        ]
-    }
-    mock_workspace_client.api_client.do.return_value = mock_response
-    
-    manager = GenieSpacesManager(mock_workspace_client)
-    result = manager.list_spaces()
-    
-    assert "spaces" in result
-    assert len(result["spaces"]) == 2
-    assert result["spaces"][0]["space_id"] == "123"
-    
-    mock_workspace_client.api_client.do.assert_called_once()
-    call_args = mock_workspace_client.api_client.do.call_args
-    assert call_args[1]["method"] == "GET"
-    assert "spaces" in call_args[1]["path"]
-
-
 def test_get_space(mock_workspace_client):
-    """Test get_space method"""
+    """Test get_space method returns GenieSpace"""
     mock_response = {
         "space_id": "123",
         "title": "Test Space"
@@ -69,35 +49,49 @@ def test_get_space(mock_workspace_client):
     mock_workspace_client.api_client.do.return_value = mock_response
     
     manager = GenieSpacesManager(mock_workspace_client)
-    result = manager.get_space("123")
     
-    assert result["space_id"] == "123"
-    assert result["title"] == "Test Space"
+    with patch('databricks_genie_spaces.spaces.GenieSpace') as mock_genie_space:
+        mock_space = Mock()
+        mock_space.space_id = "123"
+        mock_space.title = "Test Space"
+        mock_genie_space.from_dict.return_value = mock_space
+        
+        result = manager.get_space("123")
+        
+        assert result.space_id == "123"
+        assert result.title == "Test Space"
+        mock_genie_space.from_dict.assert_called_once_with(mock_response)
     
     call_args = mock_workspace_client.api_client.do.call_args
     assert "spaces/123" in call_args[1]["path"]
 
 
 def test_get_space_with_serialized(mock_workspace_client):
-    """Test get_space with serialized_space"""
+    """Test get_space with include_serialized_space option"""
     mock_response = {
         "space_id": "123",
         "title": "Test Space",
-        "serialized_space": "{\"version\": 1}"
+        "serialized_space": '{"version": 1}'
     }
     mock_workspace_client.api_client.do.return_value = mock_response
     
     manager = GenieSpacesManager(mock_workspace_client)
-    result = manager.get_space("123", include_serialized_space=True)
     
-    assert "serialized_space" in result
+    with patch('databricks_genie_spaces.spaces.GenieSpace') as mock_genie_space:
+        mock_space = Mock()
+        mock_space.serialized_space = '{"version": 1}'
+        mock_genie_space.from_dict.return_value = mock_space
+        
+        result = manager.get_space("123", include_serialized_space=True)
+        
+        assert result.serialized_space == '{"version": 1}'
     
     call_args = mock_workspace_client.api_client.do.call_args
     assert call_args[1]["query"]["include_serialized_space"] == "true"
 
 
 def test_create_space(mock_workspace_client):
-    """Test create_space method"""
+    """Test create_space method returns GenieSpace"""
     mock_response = {
         "space_id": "789",
         "title": "New Space"
@@ -105,15 +99,23 @@ def test_create_space(mock_workspace_client):
     mock_workspace_client.api_client.do.return_value = mock_response
     
     manager = GenieSpacesManager(mock_workspace_client)
-    result = manager.create_space(
-        warehouse_id="abc123",
-        parent_path="/Workspace/Users/test",
-        serialized_space='{"config": "test"}',
-        title="New Space"
-    )
     
-    assert result["space_id"] == "789"
-    assert result["title"] == "New Space"
+    with patch('databricks_genie_spaces.spaces.GenieSpace') as mock_genie_space:
+        mock_space = Mock()
+        mock_space.space_id = "789"
+        mock_space.title = "New Space"
+        mock_genie_space.from_dict.return_value = mock_space
+        
+        result = manager.create_space(
+            warehouse_id="abc123",
+            parent_path="/Workspace/Users/test",
+            serialized_space='{"config": "test"}',
+            title="New Space"
+        )
+        
+        assert result.space_id == "789"
+        assert result.title == "New Space"
+        mock_genie_space.from_dict.assert_called_once_with(mock_response)
     
     call_args = mock_workspace_client.api_client.do.call_args
     assert call_args[1]["method"] == "POST"
@@ -123,7 +125,7 @@ def test_create_space(mock_workspace_client):
 
 
 def test_update_space(mock_workspace_client):
-    """Test update_space method"""
+    """Test update_space method returns GenieSpace"""
     mock_response = {
         "space_id": "123",
         "title": "Updated Title"
@@ -131,9 +133,16 @@ def test_update_space(mock_workspace_client):
     mock_workspace_client.api_client.do.return_value = mock_response
     
     manager = GenieSpacesManager(mock_workspace_client)
-    result = manager.update_space(space_id="123", title="Updated Title")
     
-    assert result["title"] == "Updated Title"
+    with patch('databricks_genie_spaces.spaces.GenieSpace') as mock_genie_space:
+        mock_space = Mock()
+        mock_space.title = "Updated Title"
+        mock_genie_space.from_dict.return_value = mock_space
+        
+        result = manager.update_space(space_id="123", title="Updated Title")
+        
+        assert result.title == "Updated Title"
+        mock_genie_space.from_dict.assert_called_once_with(mock_response)
     
     call_args = mock_workspace_client.api_client.do.call_args
     assert call_args[1]["method"] == "PATCH"
@@ -147,20 +156,6 @@ def test_update_space_no_fields_error(mock_workspace_client):
     
     with pytest.raises(ValueError, match="At least one field must be provided"):
         manager.update_space("123")
-
-
-def test_trash_space(mock_workspace_client):
-    """Test trash_space method"""
-    mock_workspace_client.api_client.do.return_value = {}
-    
-    manager = GenieSpacesManager(mock_workspace_client)
-    result = manager.trash_space("123")
-    
-    assert result == {}
-    
-    call_args = mock_workspace_client.api_client.do.call_args
-    assert call_args[1]["method"] == "DELETE"
-    assert "spaces/123" in call_args[1]["path"]
 
 
 def test_genie_space_error():
@@ -189,7 +184,7 @@ def test_api_error_handling(mock_workspace_client):
 
 
 def test_501_error_handling(mock_workspace_client):
-    """Test 501 error specific handling"""
+    """Test 501 error specific handling for Beta APIs"""
     mock_error = Exception("Not supported")
     mock_error.status_code = 501
     mock_workspace_client.api_client.do.side_effect = mock_error
@@ -197,7 +192,7 @@ def test_501_error_handling(mock_workspace_client):
     manager = GenieSpacesManager(mock_workspace_client)
     
     with pytest.raises(GenieSpaceError) as exc_info:
-        manager.list_spaces()
+        manager.get_space("some_id")
     
     assert exc_info.value.status_code == 501
     assert "not yet supported" in exc_info.value.message.lower()
@@ -205,4 +200,3 @@ def test_501_error_handling(mock_workspace_client):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

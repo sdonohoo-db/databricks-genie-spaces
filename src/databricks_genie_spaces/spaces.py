@@ -1,24 +1,26 @@
 """
 Databricks Genie Spaces Management
 
-Extension of databricks-ai-bridge for Genie Space CRUD operations.
+Extension package providing Beta Genie Space APIs not yet available in the Databricks SDK.
 API Reference: https://docs.databricks.com/api/workspace/genie
 
-This module provides administrative functions for managing Genie Spaces:
-- list_spaces: List all Genie Spaces
-- create_space: Create a new Genie Space
-- get_space: Get details of a specific Genie Space
-- update_space: Update an existing Genie Space
-- trash_space: Delete/trash a Genie Space
+This module provides Beta APIs for managing Genie Spaces:
+- get_space: Get space details with include_serialized_space option (for export)
+- create_space: Create a new Genie Space (Beta)
+- update_space: Update an existing Genie Space (Beta)
 
-These operations complement the query/interaction capabilities provided by
-the GenieClient in databricks-ai-bridge.
+For Public Preview APIs, use the Databricks SDK directly:
+- w.genie.list_spaces() - List all Genie Spaces
+- w.genie.get_space(space_id) - Get basic space details
+- w.genie.trash_space(space_id) - Delete a Genie Space
+
+See: https://databricks-sdk-py.readthedocs.io/en/stable/workspace/dashboards/genie.html
 """
 
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.core import ApiClient
+from databricks.sdk.service.dashboards import GenieSpace
 
 try:
     import mlflow
@@ -40,11 +42,20 @@ class GenieSpaceError(Exception):
 
 class GenieSpacesManager:
     """
-    Manager for Databricks Genie Space administrative operations
+    Manager for Databricks Genie Space Beta APIs
     
-    This class extends the functionality of databricks-ai-bridge by providing
-    CRUD operations for Genie Spaces. Use this for space management tasks,
-    and use databricks_ai_bridge.genie.GenieClient for querying spaces.
+    This class provides Beta APIs for Genie Space management that are not yet
+    available in the Databricks SDK. For Public Preview APIs, use the SDK directly.
+    
+    Beta APIs (this package):
+        - get_space(space_id, include_serialized_space=True) - Export configuration
+        - create_space() - Create a new Genie Space
+        - update_space() - Update an existing Genie Space
+    
+    Public Preview APIs (use Databricks SDK):
+        - w.genie.list_spaces() - List all spaces
+        - w.genie.get_space(space_id) - Get basic space details
+        - w.genie.trash_space(space_id) - Delete a space
     
     Example:
         >>> from databricks.sdk import WorkspaceClient
@@ -52,12 +63,18 @@ class GenieSpacesManager:
         >>> 
         >>> w = WorkspaceClient()
         >>> manager = GenieSpacesManager(w)
-        >>> spaces = manager.list_spaces()
         >>> 
-        >>> # For querying, use databricks-ai-bridge:
-        >>> from databricks_ai_bridge.genie import GenieClient
-        >>> genie = GenieClient(w, space_id="...")
-        >>> response = genie.ask_question("Show me sales by region")
+        >>> # Use SDK for listing (Public Preview)
+        >>> spaces = w.genie.list_spaces()
+        >>> 
+        >>> # Use this package for create/update (Beta)
+        >>> template = manager.get_space("template_id", include_serialized_space=True)
+        >>> new_space = manager.create_space(
+        ...     warehouse_id="...",
+        ...     parent_path="/Workspace/...",
+        ...     serialized_space=template.serialized_space
+        ... )
+        >>> print(f"Created: {new_space.space_id}")
     
     API Reference: https://docs.databricks.com/api/workspace/genie
     """
@@ -123,47 +140,6 @@ class GenieSpacesManager:
             
             raise GenieSpaceError(status_code, error_msg, None)
     
-    def list_spaces(
-        self,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        List all Genie Spaces in the workspace
-        
-        API: GET /api/2.0/genie/spaces
-        Docs: https://docs.databricks.com/api/workspace/genie/listspaces
-        
-        Args:
-            page_size: Maximum number of spaces to return per page
-            page_token: Token for pagination (from previous response)
-            
-        Returns:
-            Dictionary containing:
-                - spaces: List of space objects
-                - next_page_token: Token for next page (if more results exist)
-                
-        Example:
-            >>> manager = GenieSpacesManager(workspace_client)
-            >>> result = manager.list_spaces()
-            >>> for space in result.get('spaces', []):
-            ...     print(f"{space['space_id']}: {space['title']}")
-        """
-        params = {}
-        if page_size:
-            params["page_size"] = page_size
-        if page_token:
-            params["page_token"] = page_token
-        
-        if MLFLOW_AVAILABLE:
-            with mlflow.start_span(name="list_spaces") as span:
-                span.set_attribute("page_size", page_size)
-                result = self._make_request("GET", "spaces", params=params)
-                span.set_attribute("num_spaces", len(result.get("spaces", [])))
-                return result
-        else:
-            return self._make_request("GET", "spaces", params=params)
-    
     def create_space(
         self,
         warehouse_id: str,
@@ -171,9 +147,9 @@ class GenieSpacesManager:
         serialized_space: str,
         title: Optional[str] = None,
         description: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> GenieSpace:
         """
-        Create a new Genie Space
+        Create a new Genie Space (Beta API)
         
         API: POST /api/2.0/genie/spaces
         Docs: https://docs.databricks.com/api/workspace/genie/createspace
@@ -189,14 +165,14 @@ class GenieSpacesManager:
             description: Optional space description (can override description in serialized_space)
             
         Returns:
-            Dictionary containing the created space details including space_id
+            GenieSpace: The created space object (consistent with SDK patterns)
             
         Example:
             >>> # Create from exported configuration
             >>> manager = GenieSpacesManager(workspace_client)
             >>> # First, export an existing space
             >>> exported = manager.get_space("existing_space_id", include_serialized_space=True)
-            >>> serialized_config = exported['serialized_space']
+            >>> serialized_config = exported.serialized_space
             >>> 
             >>> # Create new space from configuration
             >>> space = manager.create_space(
@@ -206,7 +182,7 @@ class GenieSpacesManager:
             ...     title="My New Space",
             ...     description="A space for analytics"
             ... )
-            >>> print(f"Created space: {space['space_id']}")
+            >>> print(f"Created space: {space.space_id}")
         """
         data = {
             "warehouse_id": warehouse_id,
@@ -225,20 +201,24 @@ class GenieSpacesManager:
                 span.set_attribute("title", title or "")
                 result = self._make_request("POST", "spaces", data=data)
                 span.set_attribute("space_id", result.get("space_id", ""))
-                return result
+                return GenieSpace.from_dict(result)
         else:
-            return self._make_request("POST", "spaces", data=data)
+            result = self._make_request("POST", "spaces", data=data)
+            return GenieSpace.from_dict(result)
     
     def get_space(
         self,
         space_id: str,
         include_serialized_space: bool = False
-    ) -> Dict[str, Any]:
+    ) -> GenieSpace:
         """
-        Get details of a specific Genie Space
+        Get details of a specific Genie Space (with serialized_space export option)
         
         API: GET /api/2.0/genie/spaces/{space_id}
         Docs: https://docs.databricks.com/api/workspace/genie/getspace
+        
+        Note: The SDK's w.genie.get_space() does not support include_serialized_space.
+        Use this method when you need to export space configurations.
         
         Args:
             space_id: The unique identifier of the Genie Space
@@ -246,7 +226,7 @@ class GenieSpacesManager:
                                      (required for export/import operations)
             
         Returns:
-            Dictionary containing:
+            GenieSpace: Space object with attributes:
                 - space_id: The space identifier
                 - title: Space title
                 - description: Space description
@@ -256,12 +236,12 @@ class GenieSpacesManager:
         Example:
             >>> # Get basic space info
             >>> space = manager.get_space("01ef274d35a310b5bffd01dadcbaf577")
-            >>> print(space['title'])
+            >>> print(space.title)
             
             >>> # Export space configuration
             >>> exported = manager.get_space("01ef274d35a310b5bffd01dadcbaf577", 
             ...                              include_serialized_space=True)
-            >>> config = exported['serialized_space']
+            >>> config = exported.serialized_space
         """
         params = {}
         if include_serialized_space:
@@ -272,9 +252,10 @@ class GenieSpacesManager:
                 span.set_attribute("space_id", space_id)
                 span.set_attribute("include_serialized_space", include_serialized_space)
                 result = self._make_request("GET", f"spaces/{space_id}", params=params)
-                return result
+                return GenieSpace.from_dict(result)
         else:
-            return self._make_request("GET", f"spaces/{space_id}", params=params)
+            result = self._make_request("GET", f"spaces/{space_id}", params=params)
+            return GenieSpace.from_dict(result)
     
     def update_space(
         self,
@@ -284,9 +265,9 @@ class GenieSpacesManager:
         serialized_space: Optional[str] = None,
         title: Optional[str] = None,
         description: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> GenieSpace:
         """
-        Update an existing Genie Space
+        Update an existing Genie Space (Beta API)
         
         API: PATCH /api/2.0/genie/spaces/{space_id}
         Docs: https://docs.databricks.com/api/workspace/genie/updatespace
@@ -302,12 +283,13 @@ class GenieSpacesManager:
             description: New space description
             
         Returns:
-            Dictionary containing the updated space details
+            GenieSpace: The updated space object
             
         Example:
             >>> # Update just the title
-            >>> manager.update_space("01ef274d35a310b5bffd01dadcbaf577", 
-            ...                      title="Updated Title")
+            >>> updated = manager.update_space("01ef274d35a310b5bffd01dadcbaf577", 
+            ...                                title="Updated Title")
+            >>> print(updated.title)
             
             >>> # Update configuration from export
             >>> manager.update_space("01ef274d35a310b5bffd01dadcbaf577",
@@ -334,36 +316,10 @@ class GenieSpacesManager:
                 span.set_attribute("space_id", space_id)
                 span.set_attribute("fields_updated", list(data.keys()))
                 result = self._make_request("PATCH", f"spaces/{space_id}", data=data)
-                return result
+                return GenieSpace.from_dict(result)
         else:
-            return self._make_request("PATCH", f"spaces/{space_id}", data=data)
-    
-    def trash_space(self, space_id: str) -> Dict[str, Any]:
-        """
-        Delete (trash) a Genie Space
-        
-        API: DELETE /api/2.0/genie/spaces/{space_id}
-        Docs: https://docs.databricks.com/api/workspace/genie/trashspace
-        
-        Note: This moves the space to trash. It may be recoverable depending on
-        workspace settings.
-        
-        Args:
-            space_id: The unique identifier of the Genie Space to delete
-            
-        Returns:
-            Empty dictionary on success
-            
-        Example:
-            >>> manager.trash_space("01ef274d35a310b5bffd01dadcbaf577")
-        """
-        if MLFLOW_AVAILABLE:
-            with mlflow.start_span(name="trash_space") as span:
-                span.set_attribute("space_id", space_id)
-                result = self._make_request("DELETE", f"spaces/{space_id}")
-                return result
-        else:
-            return self._make_request("DELETE", f"spaces/{space_id}")
+            result = self._make_request("PATCH", f"spaces/{space_id}", data=data)
+            return GenieSpace.from_dict(result)
 
 
 def create_spaces_manager(workspace_client: Optional[WorkspaceClient] = None) -> GenieSpacesManager:
